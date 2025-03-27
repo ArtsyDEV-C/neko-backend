@@ -22,33 +22,32 @@ const trafficRoutes = require('./routes/trafficRoutes');
 const app = express();
 
 // Middleware
-app.use(express.json());  // Parses JSON requests
-app.use(express.urlencoded({ extended: true })); // Parses URL-encoded requests
-app.use(cors());  // Handles Cross-Origin Requests
-app.use(morgan("dev"));  // Logs requests
-app.use(helmet());  // Security headers
-app.use(passport.initialize()); // Initialize passport
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+app.use(morgan("dev"));
+app.use(helmet());
+app.use(passport.initialize());
 
-// Example of a correct middleware function
 app.use((req, res, next) => {
-    console.log('Request URL:', req.originalUrl);
-    next();
+  console.log('Request URL:', req.originalUrl);
+  next();
 });
 
-// Routes
+// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/weather", weatherRoutes);
-app.use("/api/chatbot", chatbotRoutes);
+app.use("/api/chatbot", chatbotRoutes); // includes OpenAI + scenario endpoints
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/routes", routeRoutes);
 app.use("/api/voice", voiceRoutes);
-app.use("/api/traffic", trafficRoutes); // Add this line
+app.use("/api/traffic", trafficRoutes);
 
 // Connect to MongoDB
-connectDB(); // Use the new MongoDB connection function
+connectDB();
 
-// Create HTTP server and Socket.IO server
+// Setup HTTP + WebSocket server
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
@@ -57,14 +56,15 @@ const io = socketIo(server, {
 });
 
 io.on("connection", (socket) => {
-  console.log("New client connected");
-  socket.emit("weather-alert", { msg: "Storm warning!" });
+  console.log("🔌 New client connected");
+
+  socket.emit("weather-alert", { msg: "⚠️ Storm warning!" });
 
   socket.on("disconnect", () => {
-    console.log("Client disconnected");
+    console.log("❌ Client disconnected");
   });
 });
 
-// Start the server
+// Start server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
