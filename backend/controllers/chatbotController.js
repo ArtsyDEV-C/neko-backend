@@ -1,6 +1,8 @@
-const axios = require("axios");
-const ChatHistory = require("../models/ChatHistory");
+const axios = require('axios');
+const ChatHistory = require('../models/ChatHistory');
 const { OpenAI_API_KEY, OPENWEATHER_API_KEY } = process.env;
+const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
 
 // 🌍 Convert location string to coordinates
 async function getCoordinatesFromLocation(location) {
@@ -16,7 +18,7 @@ async function getCoordinatesFromLocation(location) {
     return data ? { lat: data.lat, lon: data.lon } : null;
   } catch (err) {
     console.error("Geocoding error:", err.message);
-    return null;
+    throw new Error("Unable to fetch location data.");
   }
 }
 
@@ -36,7 +38,7 @@ async function getWeatherData(lat, lon) {
     return `Weather in ${w.name}: ${w.main.temp}°C, ${w.weather[0].description}, Humidity: ${w.main.humidity}%, Wind: ${w.wind.speed} km/h.`;
   } catch (err) {
     console.error("Weather fetch error:", err.message);
-    return "";
+    throw new Error("Unable to fetch weather data. Please try again later.");
   }
 }
 
@@ -45,6 +47,12 @@ exports.getChatbotResponse = async (req, res) => {
   try {
     const userMessage = req.body.message;
     const user = req.user?._id || null;
+
+    // Validate user message
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
     let weatherInfo = "";
 
@@ -55,6 +63,8 @@ exports.getChatbotResponse = async (req, res) => {
       const coords = await getCoordinatesFromLocation(location);
       if (coords) {
         weatherInfo = await getWeatherData(coords.lat, coords.lon);
+      } else {
+        weatherInfo = "Sorry, I couldn't recognize the location. Please try again with a valid city name.";
       }
     }
 
@@ -114,3 +124,11 @@ exports.getChatHistory = async (req, res) => {
   }
 };
 
+// Rate limiting middleware for API calls
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+});
+
+app.use("/api/", limiter);
