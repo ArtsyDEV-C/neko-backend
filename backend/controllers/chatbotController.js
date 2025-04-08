@@ -15,10 +15,13 @@ async function getCoordinatesFromLocation(location) {
       },
     });
     const [data] = res.data;
-    return data ? { lat: data.lat, lon: data.lon } : null;
+    if (!data) {
+      throw new Error("Location not found.");
+    }
+    return { lat: data.lat, lon: data.lon };
   } catch (err) {
     console.error("Geocoding error:", err.message);
-    throw new Error("Unable to fetch location data.");
+    throw new Error("Unable to fetch location data. Please check your location and try again.");
   }
 }
 
@@ -56,8 +59,8 @@ exports.getChatbotResponse = async (req, res) => {
 
     let weatherInfo = "";
 
-    // Try extracting location from message (e.g., "in Chennai")
-    const locationMatch = userMessage.match(/in ([a-zA-Z\s]+)/i);
+    // Try extracting location from message (e.g., "in Chennai", "Chennai weather")
+    const locationMatch = userMessage.match(/(?:in|at|from)\s([a-zA-Z\s]+)/i); // More flexible regex
     if (locationMatch) {
       const location = locationMatch[1].trim();
       const coords = await getCoordinatesFromLocation(location);
@@ -131,4 +134,5 @@ const limiter = rateLimit({
   message: "Too many requests from this IP, please try again later.",
 });
 
+// Apply rate limit to all routes
 app.use("/api/", limiter);
