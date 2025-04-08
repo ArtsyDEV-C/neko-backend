@@ -1,106 +1,116 @@
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-const ChatHistory = require('../models/ChatHistory');
+const axios = require("axios");
+const ChatHistory = require("../models/ChatHistory");
+const { OpenAI_API_KEY, OPENWEATHER_API_KEY } = process.env;
 
-// Load weatherScenarios.json
-const scenariosPath = path.join(__dirname, '../data/weatherScenarios.json');
-let scenarios = [];
-try {
-    const rawData = fs.readFileSync(scenariosPath);
-    scenarios = JSON.parse(rawData);
-} catch (err) {
-    console.error("❌ Failed to load weatherScenarios.json:", err.message);
+// 🌍 Convert location string to coordinates
+async function getCoordinatesFromLocation(location) {
+  try {
+    const res = await axios.get("https://nominatim.openstreetmap.org/search", {
+      params: {
+        q: location,
+        format: "json",
+        limit: 1,
+      },
+    });
+    const [data] = res.data;
+    return data ? { lat: data.lat, lon: data.lon } : null;
+  } catch (err) {
+    console.error("Geocoding error:", err.message);
+    return null;
+  }
 }
 
-// Utility to match scenario based on request body
-function matchScenario({ industry, category, severity, level, weatherType }) {
-    return scenarios.find(s =>
-        s.industry.toLowerCase() === industry.toLowerCase() &&
-        s.category.toLowerCase() === category.toLowerCase() &&
-        s.severity.toLowerCase() === severity.toLowerCase() &&
-        s.level.toString() === level.toString() &&
-        s.weatherType.toLowerCase() === weatherType.toLowerCase()
-    );
+// ⛅ Get weather data from OpenWeather
+async function getWeatherData(lat, lon) {
+  try {
+    const res = await axios.get("https://api.openweathermap.org/data/2.5/weather", {
+      params: {
+        lat,
+        lon,
+        units: "metric",
+        appid: OPENWEATHER_API_KEY,
+      },
+    });
+
+    const w = res.data;
+    return `Weather in ${w.name}: ${w.main.temp}°C, ${w.weather[0].description}, Humidity: ${w.main.humidity}%, Wind: ${w.wind.speed} km/h.`;
+  } catch (err) {
+    console.error("Weather fetch error:", err.message);
+    return "";
+  }
 }
 
-// 🧠 Smart Scenario-Based Response
-exports.getScenarioAdvice = (req, res) => {
-    const { industry, category, severity, level, weatherType } = req.body;
-
-    if (!industry || !category || !severity || !level || !weatherType) {
-        return res.status(400).json({ error: "Missing required fields." });
-    }
-
-    const match = matchScenario({ industry, category, severity, level, weatherType });
-
-    if (match) {
-        return res.json({
-            reply: `📍 *${industry} Alert* (${severity} - ${weatherType})
-            
-📌 *Scenario:* ${match.scenario}
-
-💡 *Advice:* ${match.advice}
-
-⚠️ Urgency: ${match.responseUrgency}
-🧭 Risk Type: ${match.riskType}
-👥 Groups: ${match.sensitiveGroups.join(', ')}
-📍 Region: ${match.regionType}
-✅ Source: ${match.sourceReliability}`
-        });
-    } else {
-        return res.json({ reply: "⚠️ No matching scenario found. Try different inputs." });
-    }
-};
-
-// 💬 OpenAI Chatbot Response (unchanged)
+// 🤖 Get GPT response with optional weather context
 exports.getChatbotResponse = async (req, res) => {
-    const { message } = req.query;
-    if (!message) {
-        return res.status(400).json({ error: "Prompt message is required." });
+  try {
+    const userMessage = req.body.message;
+    const user = req.user?._id || null;
+
+    let weatherInfo = "";
+
+    // Try extracting location from message (e.g., "in Chennai")
+    const locationMatch = userMessage.match(/in ([a-zA-Z\s]+)/i);
+    if (locationMatch) {
+      const location = locationMatch[1].trim();
+      const coords = await getCoordinatesFromLocation(location);
+      if (coords) {
+        weatherInfo = await getWeatherData(coords.lat, coords.lon);
+      }
     }
 
-    try {
-        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: message }],
-            max_tokens: 150
-        }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-            }
-        });
+    // Build GPT prompt
+    const messages = [
+      {
+        role: "system",
+        content: "You are Neko, a smart, helpful AI assistant specialized in weather guidance. Always respond in a friendly and informative tone. Use weather data when available.",
+      },
+    ];
 
-        res.json({ response: response.data.choices[0].message.content });
-    } catch (error) {
-        console.error("OpenAI Chatbot error:", error.message);
-        res.status(500).json({ error: 'Failed to get chatbot response' });
+    if (weatherInfo) {
+      messages.push({ role: "system", content: weatherInfo });
     }
+
+    messages.push({ role: "user", content: userMessage });
+
+    // Call OpenAI Chat Completion API
+    const gptRes = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-3.5-turbo",
+        messages,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${OpenAI_API_KEY}`,
+        },
+      }
+    );
+
+    const reply = gptRes.data.choices[0].message.content;
+
+    // Save to DB only if user is logged in
+    if (user) {
+      await ChatHistory.create({ user, role: "user", message: userMessage });
+      await ChatHistory.create({ user, role: "bot", message: reply });
+    }
+
+    return res.json({ reply });
+  } catch (error) {
+    console.error("Chatbot error:", error.message);
+    return res.status(500).json({ reply: "Sorry, I couldn't process that. Please try again." });
+  }
 };
 
-// 🗂️ Chat history endpoints
+// 📜 Get chat history (logged-in users only)
 exports.getChatHistory = async (req, res) => {
-    try {
-        const history = await ChatHistory.find().limit(100).sort({ createdAt: -1 });
-        res.json(history);
-    } catch (error) {
-        console.error("Chat history fetch error:", error.message);
-        res.status(500).json({ error: 'Failed to fetch chat history' });
-    }
+  try {
+    const messages = await ChatHistory.find({ user: req.user._id })
+      .sort({ createdAt: 1 })
+      .limit(100);
+    return res.json(messages);
+  } catch (error) {
+    console.error("History fetch error:", error.message);
+    return res.status(500).json({ error: "Failed to load chat history." });
+  }
 };
 
-exports.saveChatMessage = async (req, res) => {
-    const { message, user } = req.body;
-    if (!message || !user) {
-        return res.status(400).json({ error: "Message and user are required." });
-    }
-
-    try {
-        const newMessage = new ChatHistory({ message, user });
-        await newMessage.save();
-        res.status(201).json({ message: 'Message saved successfully' });
-    } catch (error) {
-        console.error("Chat save error:", error.message);
-        res.status(500).json({ error: 'Failed to save message' });
-    }
-};
