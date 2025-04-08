@@ -23,4 +23,7 @@ router.post('/api/message', chatbotController.saveChatMessage);
 // 📜 Chat history (auth protected)
 router.get('/api/history', authenticate, chatbotController.getChatHistory);
 
+router.post('/api/scenario-advice', chatbotController.getScenarioAdvice);
+
+
 module.exports = router;
