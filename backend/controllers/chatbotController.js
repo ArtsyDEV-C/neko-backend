@@ -125,3 +125,44 @@ exports.getChatHistory = async (req, res) => {
   }
 };
 
+// 📦 Weather scenario-based advice from large dataset
+const fs = require('fs');
+const path = require('path');
+
+// POST /api/scenario-advice
+exports.getScenarioAdvice = async (req, res) => {
+  try {
+    const { weatherType, industry, severity, category } = req.body;
+
+    if (!weatherType) {
+      return res.status(400).json({ error: "weatherType is required." });
+    }
+
+    const filePath = path.join(__dirname, '..', 'data', 'weatherScenarios.json');
+    const data = fs.readFileSync(filePath, 'utf-8');
+    const scenarios = JSON.parse(data);
+
+    // Filter based on query
+    const matches = scenarios.filter(entry =>
+      entry.weatherType.toLowerCase() === weatherType.toLowerCase() &&
+      (!industry || entry.industry.toLowerCase().includes(industry.toLowerCase())) &&
+      (!severity || entry.severity.toLowerCase() === severity.toLowerCase()) &&
+      (!category || entry.category.toLowerCase().includes(category.toLowerCase()))
+    );
+
+    if (matches.length === 0) {
+      return res.status(404).json({ message: "No matching scenario advice found." });
+    }
+
+    return res.json({
+      count: matches.length,
+      results: matches.slice(0, 10) // Return top 10 for performance
+    });
+
+  } catch (err) {
+    console.error("Scenario advice error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch scenario advice." });
+  }
+};
+
+
