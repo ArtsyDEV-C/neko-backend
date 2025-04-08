@@ -1,8 +1,7 @@
 const axios = require('axios');
 const ChatHistory = require('../models/ChatHistory');
 const { OpenAI_API_KEY, OPENWEATHER_API_KEY } = process.env;
-const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
+const { validationResult } = require('express-validator');
 
 // 🌍 Convert location string to coordinates
 async function getCoordinatesFromLocation(location) {
@@ -15,9 +14,7 @@ async function getCoordinatesFromLocation(location) {
       },
     });
     const [data] = res.data;
-    if (!data) {
-      throw new Error("Location not found.");
-    }
+    if (!data) throw new Error("Location not found.");
     return { lat: data.lat, lon: data.lon };
   } catch (err) {
     console.error("Geocoding error:", err.message);
@@ -51,7 +48,7 @@ exports.getChatbotResponse = async (req, res) => {
     const userMessage = req.body.message;
     const user = req.user?._id || null;
 
-    // Validate user message
+    // Input validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -59,8 +56,8 @@ exports.getChatbotResponse = async (req, res) => {
 
     let weatherInfo = "";
 
-    // Try extracting location from message (e.g., "in Chennai", "Chennai weather")
-    const locationMatch = userMessage.match(/(?:in|at|from)\s([a-zA-Z\s]+)/i); // More flexible regex
+    // Extract location (flexible regex like "in Chennai", "Chennai weather")
+    const locationMatch = userMessage.match(/(?:in|at|from)?\s*([A-Za-z\s]+)\s*(?:weather)?/i);
     if (locationMatch) {
       const location = locationMatch[1].trim();
       const coords = await getCoordinatesFromLocation(location);
@@ -71,7 +68,7 @@ exports.getChatbotResponse = async (req, res) => {
       }
     }
 
-    // Build GPT prompt
+    // Prepare GPT prompt
     const messages = [
       {
         role: "system",
@@ -85,7 +82,7 @@ exports.getChatbotResponse = async (req, res) => {
 
     messages.push({ role: "user", content: userMessage });
 
-    // Call OpenAI Chat Completion API
+    // Call OpenAI Chat API
     const gptRes = await axios.post(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -101,20 +98,21 @@ exports.getChatbotResponse = async (req, res) => {
 
     const reply = gptRes.data.choices[0].message.content;
 
-    // Save to DB only if user is logged in
+    // Save to DB if user is logged in
     if (user) {
       await ChatHistory.create({ user, role: "user", message: userMessage });
       await ChatHistory.create({ user, role: "bot", message: reply });
     }
 
     return res.json({ reply });
+
   } catch (error) {
     console.error("Chatbot error:", error.message);
     return res.status(500).json({ reply: "Sorry, I couldn't process that. Please try again." });
   }
 };
 
-// 📜 Get chat history (logged-in users only)
+// 📜 Get chat history (only for logged-in users)
 exports.getChatHistory = async (req, res) => {
   try {
     const messages = await ChatHistory.find({ user: req.user._id })
@@ -127,12 +125,3 @@ exports.getChatHistory = async (req, res) => {
   }
 };
 
-// Rate limiting middleware for API calls
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: "Too many requests from this IP, please try again later.",
-});
-
-// Apply rate limit to all routes
-app.use("/api/", limiter);
