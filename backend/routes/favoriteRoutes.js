@@ -17,4 +17,10 @@ router.delete('/:city', authenticate, favoriteController.removeFavoriteCity);
 // ✅ Optional: Check if city is already favorited
 router.get('/check', authenticate, favoriteController.checkIfCityIsFavorite);
 
+// 🔄 Reorder cities by drag & drop
+router.post('/reorder', authenticate, favoriteController.reorderFavorites);
+
+// 📧 Notify user about weather updates for favorite cities
+router.post('/notify', authenticate, favoriteController.notifyFavoritesWeather);
+
 module.exports = router;
