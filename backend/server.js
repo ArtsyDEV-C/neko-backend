@@ -57,6 +57,12 @@ const io = socketIo(server, {
 
 app.use('/api/user', require('./routes/userRoutes'));
 
+// server.js or app.js
+
+const favoriteRoutes = require('./routes/favoriteRoutes');
+app.use('/api/favorites', favoriteRoutes);
+
+
 
 io.on("connection", (socket) => {
   console.log("🔌 New client connected");
