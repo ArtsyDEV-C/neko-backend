@@ -1,6 +1,11 @@
 // backend/controllers/favoriteController.js
 
 const Favorite = require('../models/Favorite');
+const axios = require('axios');
+const sendEmail = require('../utils/sendEmail');
+const User = require('../models/User');
+
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 
 // ➕ Add a new favorite city
 exports.addFavoriteCity = async (req, res) => {
@@ -8,18 +13,20 @@ exports.addFavoriteCity = async (req, res) => {
     const { city, country, lat, lon } = req.body;
     const userId = req.user.id;
 
-    // Check for duplicate
     const existing = await Favorite.findOne({ user: userId, city: city.trim() });
     if (existing) {
       return res.status(400).json({ error: "City already in favorites." });
     }
+
+    const count = await Favorite.countDocuments({ user: userId });
 
     const favorite = new Favorite({
       user: userId,
       city: city.trim(),
       country: country?.trim() || '',
       lat,
-      lon
+      lon,
+      order: count
     });
 
     await favorite.save();
@@ -30,11 +37,11 @@ exports.addFavoriteCity = async (req, res) => {
   }
 };
 
-// 📥 Get all favorites for a user
+// 📥 Get all favorites for a user (ordered)
 exports.getFavoriteCities = async (req, res) => {
   try {
     const userId = req.user.id;
-    const favorites = await Favorite.find({ user: userId }).sort({ createdAt: -1 });
+    const favorites = await Favorite.find({ user: userId }).sort({ order: 1 });
     res.json(favorites);
   } catch (error) {
     console.error("Get favorites error:", error.message);
@@ -60,7 +67,7 @@ exports.removeFavoriteCity = async (req, res) => {
   }
 };
 
-// ✅ (Optional) Check if city is already in favorites
+// ✅ Check if city is already in favorites
 exports.checkIfCityIsFavorite = async (req, res) => {
   try {
     const { city } = req.query;
@@ -70,5 +77,45 @@ exports.checkIfCityIsFavorite = async (req, res) => {
     res.json({ isFavorite: !!exists });
   } catch (error) {
     res.status(500).json({ error: "Error checking favorite" });
+  }
+};
+
+// 🔄 Reorder favorite cities (drag & drop support)
+exports.reorderFavorites = async (req, res) => {
+  const { reordered } = req.body; // array of { id, order }
+  try {
+    for (const item of reordered) {
+      await Favorite.updateOne({ _id: item.id, user: req.user.id }, { order: item.order });
+    }
+    res.json({ message: 'Reordered successfully' });
+  } catch (err) {
+    console.error("Reorder error:", err);
+    res.status(500).json({ error: 'Failed to reorder' });
+  }
+};
+
+// 📧 Notify user about favorite city weather
+exports.notifyFavoritesWeather = async (req, res) => {
+  try {
+    const favorites = await Favorite.find({ user: req.user.id });
+    const user = await User.findById(req.user.id);
+
+    if (!favorites.length) {
+      return res.status(400).json({ error: 'No favorite cities found.' });
+    }
+
+    let content = `Hello ${user.username},\n\nHere's the latest weather update for your favorite cities:\n\n`;
+
+    for (const fav of favorites) {
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${fav.city}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+      const { data } = await axios.get(url);
+      content += `🌆 ${fav.city}:\n${data.weather[0].description}, Temp: ${data.main.temp}°C\n\n`;
+    }
+
+    await sendEmail(user.email, '🌦️ Your Favorite Cities Weather Update', content);
+    res.json({ message: 'Weather notifications sent successfully.' });
+  } catch (err) {
+    console.error('Notify error:', err);
+    res.status(500).json({ error: 'Failed to send weather notifications.' });
   }
 };
