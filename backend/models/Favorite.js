@@ -1,5 +1,3 @@
-// backend/models/Favorite.js
-
 const mongoose = require('mongoose');
 
 const favoriteSchema = new mongoose.Schema({
@@ -20,11 +18,15 @@ const favoriteSchema = new mongoose.Schema({
   },
   lat: {
     type: Number,
-    required: false // Optional – can be used to fetch weather faster
+    required: false
   },
   lon: {
     type: Number,
     required: false
+  },
+  order: {
+    type: Number,
+    default: 0 // Used for sorting/reordering in frontend
   }
 }, {
   timestamps: true
