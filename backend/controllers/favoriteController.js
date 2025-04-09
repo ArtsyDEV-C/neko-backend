@@ -119,3 +119,70 @@ exports.notifyFavoritesWeather = async (req, res) => {
     res.status(500).json({ error: 'Failed to send weather notifications.' });
   }
 };
+
+const axios = require('axios');
+const sendEmail = require('../utils/sendEmail');
+const Favorite = require('../models/Favorite');
+
+// 🔄 Drag & Drop Reorder Handler
+exports.reorderFavorites = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { order } = req.body; // array of { city: string, index: number }
+
+    for (const item of order) {
+      await Favorite.findOneAndUpdate(
+        { user: userId, city: item.city },
+        { order: item.index }
+      );
+    }
+
+    res.json({ message: "Favorites reordered successfully." });
+  } catch (error) {
+    console.error("Reorder error:", error.message);
+    res.status(500).json({ error: "Failed to reorder favorites" });
+  }
+};
+
+// 📧 Email Weather Alerts for Favorite Cities
+exports.notifyFavoritesWeather = async (req, res) => {
+  try {
+    const user = req.user;
+    const favorites = await Favorite.find({ user: user.id });
+
+    if (!favorites || favorites.length === 0) {
+      return res.status(400).json({ error: "No favorite cities to notify." });
+    }
+
+    const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+    const weatherResults = [];
+
+    for (const fav of favorites) {
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(fav.city)}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+      const res = await axios.get(url);
+      const data = res.data;
+
+      weatherResults.push({
+        city: fav.city,
+        temperature: `${data.main.temp}°C`,
+        description: data.weather[0].description
+      });
+    }
+
+    // Compose email message
+    const weatherText = weatherResults.map(w => 
+      `📍 ${w.city}\n🌡️ Temp: ${w.temperature}\n🌥️ ${w.description}`
+    ).join('\n\n');
+
+    const subject = `🌤️ Weather Update for Your Favorite Cities`;
+    const text = `Hello ${user.username},\n\nHere's your current weather update:\n\n${weatherText}\n\nStay safe!\n- Neko Weather`;
+
+    await sendEmail(user.email, subject, text);
+
+    res.json({ message: "Weather notification sent!" });
+  } catch (error) {
+    console.error("Notify error:", error.message);
+    res.status(500).json({ error: "Failed to send weather notification" });
+  }
+};
+
