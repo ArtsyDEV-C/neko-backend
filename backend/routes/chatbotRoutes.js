@@ -30,7 +30,6 @@ router.get("/history", authMiddleware.protect, chatbotController.getChatHistory)
 // 🔥 Clear chat history
 router.delete("/history", authMiddleware.protect, chatbotController.clearHistory);
 
-// ❌ Removed broken route below
-// router.post('/api/message', chatbotController.saveChatMessage);
+
 
 module.exports = router;
