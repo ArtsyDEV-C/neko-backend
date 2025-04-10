@@ -6,7 +6,7 @@ const {
   handleChat,
   getScenarioAdvice,
   getChatHistory,
-  clearHistory
+  clearHistory,
 } = require("../controllers/chatbotController");
 const authMiddleware = require("../middleware/authenticate");
 
