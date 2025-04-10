@@ -120,9 +120,8 @@ exports.notifyFavoritesWeather = async (req, res) => {
   }
 };
 
-const axios = require('axios');
-const sendEmail = require('../utils/sendEmail');
-const Favorite = require('../models/Favorite');
+
+
 
 // 🔄 Drag & Drop Reorder Handler
 exports.reorderFavorites = async (req, res) => {
