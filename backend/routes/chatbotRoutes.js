@@ -32,6 +32,6 @@ router.get("/history", authMiddleware.protect, chatbotController.getChatHistory)
 router.delete("/history", authMiddleware.protect, chatbotController.clearHistory);
 
 // ❌ Removed this unused route that caused deployment crash
-// router.post('/api/message', chatbotController.saveChatMessage);
+ router.post('/api/message', chatbotController.saveChatMessage);
 
 module.exports = router;
