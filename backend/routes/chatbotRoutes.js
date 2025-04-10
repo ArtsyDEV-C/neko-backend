@@ -25,7 +25,8 @@ router.post(
 router.get("/advice", chatbotController.getScenarioAdvice);
 
 // 🧾 Get full chat history (requires login)
-router.get("/history", authMiddleware.protect, chatbotController.getHistory);
+router.get("/history", authMiddleware.protect, chatbotController.getChatHistory);
+
 
 // 🔥 Clear chat history
 router.delete("/history", authMiddleware.protect, chatbotController.clearHistory);
