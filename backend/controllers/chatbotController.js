@@ -185,11 +185,13 @@ async function handleChat(req, res) {
 }
 
 
-module.exports.getChatbotResponse = getChatbotResponse;
-module.exports.handleChat = getChatbotResponse;
-module.exports.getChatHistory = getChatHistory;
-module.exports.getScenarioAdvice = getScenarioAdvice;
-module.exports.clearHistory = clearHistory;
+module.exports = {
+  getChatbotResponse,
+  handleChat,
+  getChatHistory,
+  getScenarioAdvice,
+  clearHistory
+};
 
 console.log("✅ chatbotController loaded");
 
