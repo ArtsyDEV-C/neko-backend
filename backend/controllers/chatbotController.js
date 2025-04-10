@@ -167,3 +167,14 @@ exports.getScenarioAdvice = async (req, res) => {
 
 
 exports.handleChat = exports.getChatbotResponse;
+
+exports.clearHistory = async (req, res) => {
+  try {
+    await ChatHistory.deleteMany({ user: req.user._id });
+    return res.json({ success: true, message: "Chat history cleared." });
+  } catch (error) {
+    console.error("Clear history error:", error.message);
+    return res.status(500).json({ error: "Failed to clear chat history." });
+  }
+};
+
