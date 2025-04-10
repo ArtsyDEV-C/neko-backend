@@ -35,65 +35,7 @@ async function getWeatherData(lat, lon) {
   return `Weather in ${w.name}: ${w.main.temp}°C, ${w.weather[0].description}, Humidity: ${w.main.humidity}%, Wind: ${w.wind.speed} km/h.`;
 }
 
-// 🤖 Main chatbot response logic
-async function handleChat(req, res) {
-  try {
-    const userMessage = req.body.message;
-    const user = req.user?._id || null;
 
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    let weatherInfo = "";
-    const locationMatch = userMessage.match(/(?:in|at|from)?\s*([A-Za-z\s]+)\s*(?:weather)?/i);
-    if (locationMatch) {
-      const location = locationMatch[1].trim();
-      const coords = await getCoordinatesFromLocation(location);
-      weatherInfo = await getWeatherData(coords.lat, coords.lon);
-    }
-
-    const messages = [
-      {
-        role: "system",
-        content: "You are Neko, a helpful AI assistant specialized in weather guidance.",
-      },
-    ];
-
-    if (weatherInfo) {
-      messages.push({ role: "system", content: weatherInfo });
-    }
-
-    messages.push({ role: "user", content: userMessage });
-
-    const gptRes = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-3.5-turbo",
-        messages,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${OpenAI_API_KEY}`,
-        },
-      }
-    );
-
-    const reply = gptRes.data.choices[0].message.content;
-
-    if (user) {
-      await ChatHistory.create({ user, role: "user", message: userMessage });
-      await ChatHistory.create({ user, role: "bot", message: reply });
-    }
-
-    return res.json({ reply });
-
-  } catch (error) {
-    console.error("Chatbot error:", error.message);
-    return res.status(500).json({ reply: "Sorry, I couldn't process that." });
-  }
-}
 
 // 📜 Get chat history
 async function getChatHistory(req, res) {
