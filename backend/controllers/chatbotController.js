@@ -8,7 +8,11 @@ const { OpenAI_API_KEY, OPENWEATHER_API_KEY } = process.env;
 
 async function getCoordinatesFromLocation(location) {
   const res = await axios.get("https://nominatim.openstreetmap.org/search", {
-    params: { q: location, format: "json", limit: 1 },
+    params: {
+      q: location,
+      format: "json",
+      limit: 1,
+    },
   });
   const [data] = res.data;
   if (!data) throw new Error("Location not found.");
@@ -24,6 +28,7 @@ async function getWeatherData(lat, lon) {
       appid: OPENWEATHER_API_KEY,
     },
   });
+
   const w = res.data;
   return `Weather in ${w.name}: ${w.main.temp}°C, ${w.weather[0].description}, Humidity: ${w.main.humidity}%, Wind: ${w.wind.speed} km/h.`;
 }
@@ -32,20 +37,23 @@ async function handleChat(req, res) {
   try {
     const { message } = req.body;
     const user = req.user?._id || null;
-
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
     let weatherInfo = "";
     const locationMatch = message.match(/(?:in|at|from)?\s*([A-Za-z\s]+)\s*(?:weather)?/i);
     if (locationMatch) {
       const location = locationMatch[1].trim();
       const coords = await getCoordinatesFromLocation(location);
-      weatherInfo = await getWeatherData(coords.lat, coords.lon);
+      if (coords) {
+        weatherInfo = await getWeatherData(coords.lat, coords.lon);
+      }
     }
 
     const messages = [
-      { role: "system", content: "You are Neko, a helpful AI assistant specialized in weather guidance." },
+      { role: "system", content: "You are Neko, a helpful weather AI assistant." }
     ];
 
     if (weatherInfo) {
@@ -54,18 +62,12 @@ async function handleChat(req, res) {
 
     messages.push({ role: "user", content: message });
 
-    const gptRes = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-3.5-turbo",
-        messages,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${OpenAI_API_KEY}`,
-        },
-      }
-    );
+    const gptRes = await axios.post("https://api.openai.com/v1/chat/completions", {
+      model: "gpt-3.5-turbo",
+      messages,
+    }, {
+      headers: { Authorization: `Bearer ${OpenAI_API_KEY}` },
+    });
 
     const reply = gptRes.data.choices[0].message.content;
 
@@ -78,7 +80,7 @@ async function handleChat(req, res) {
 
   } catch (error) {
     console.error("Chatbot error:", error.message);
-    return res.status(500).json({ reply: "Sorry, something went wrong." });
+    return res.status(500).json({ reply: "Sorry, I couldn't process that." });
   }
 }
 
@@ -87,7 +89,7 @@ async function getChatHistory(req, res) {
     const messages = await ChatHistory.find({ user: req.user._id }).sort({ createdAt: 1 }).limit(100);
     return res.json(messages);
   } catch (error) {
-    console.error("History error:", error.message);
+    console.error("History fetch error:", error.message);
     return res.status(500).json({ error: "Failed to load chat history." });
   }
 }
@@ -95,7 +97,9 @@ async function getChatHistory(req, res) {
 async function getScenarioAdvice(req, res) {
   try {
     const { weatherType, industry, severity, category } = req.body;
-    if (!weatherType) return res.status(400).json({ error: "weatherType is required." });
+    if (!weatherType) {
+      return res.status(400).json({ error: "weatherType is required." });
+    }
 
     const filePath = path.join(__dirname, '..', 'data', 'weatherScenarios.json');
     const data = fs.readFileSync(filePath, 'utf-8');
@@ -108,10 +112,11 @@ async function getScenarioAdvice(req, res) {
       (!category || entry.category.toLowerCase().includes(category.toLowerCase()))
     );
 
-    if (matches.length === 0) return res.status(404).json({ message: "No matching scenario advice found." });
+    if (matches.length === 0) {
+      return res.status(404).json({ message: "No matching scenario advice found." });
+    }
 
     return res.json({ count: matches.length, results: matches.slice(0, 10) });
-
   } catch (err) {
     console.error("Scenario advice error:", err.message);
     return res.status(500).json({ error: "Failed to fetch scenario advice." });
@@ -134,5 +139,3 @@ module.exports = {
   getScenarioAdvice,
   clearHistory,
 };
-
-console.log("✅ chatbotController loaded");
