@@ -1,7 +1,8 @@
+
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = process.env;
 
-module.exports = function authenticate(req, res, next) {
+function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -11,10 +12,25 @@ module.exports = function authenticate(req, res, next) {
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET_KEY);
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded; // Add decoded user to request
     next();
   } catch (err) {
     return res.status(403).json({ error: "Invalid or expired token." });
   }
+}
+
+function optional(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return next(); // Allow unauthenticated access
+  }
+
+  authenticate(req, res, next);
+}
+
+module.exports = {
+  protect: authenticate,
+  optional,
 };
