@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const favoriteController = require('../controllers/favoriteController');
-const authenticate = require('../middleware/authenticate');
+const { protect } = require('../middleware/authenticate');
 
 // 📥 Add a favorite city
 router.post('/add', authenticate, favoriteController.addFavoriteCity);
