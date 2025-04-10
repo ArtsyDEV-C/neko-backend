@@ -187,11 +187,12 @@ async function handleChat(req, res) {
 
 module.exports = {
   getChatbotResponse,
-  handleChat,
+  handleChat: getChatbotResponse,  // alias to the same function
   getChatHistory,
   getScenarioAdvice,
-  clearHistory
+  clearHistory,
 };
+
 
 console.log("✅ chatbotController loaded");
 
