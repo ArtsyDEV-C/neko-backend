@@ -1,29 +1,36 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const chatbotController = require('../controllers/chatbotController');
-const authenticate = require('../middleware/authenticate'); // 🔐 Auth protection
-const rateLimit = require('express-rate-limit');
+const { body } = require("express-validator");
+const rateLimit = require("express-rate-limit");
+const chatbotController = require("../controllers/chatbotController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
-// ⏳ Rate limit for chatbot access
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 100, // Limit each IP
-  message: "Too many requests. Please try again later."
+// 🛡️ Rate limiter to prevent abuse
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  message: "Too many requests. Please slow down.",
 });
 
-// 🌦️ Weather Impact Advice (ensure it's defined in the controller)
-router.post('/api/scenario-advice', chatbotController.getScenarioAdvice);
+// 🤖 Main Chat Route (with optional auth and validation)
+router.post(
+  "/chat",
+  authMiddleware.optional,
+  chatLimiter,
+  body("message").notEmpty().withMessage("Message is required"),
+  chatbotController.handleChat
+);
 
-// 🤖 Chatbot message (with rate limit)
-router.post('/api/chatbot', limiter, chatbotController.getChatbotResponse);
+// 🌤️ Scenario-based advice (e.g., weather, alerts, risk)
+router.get("/advice", chatbotController.getScenarioAdvice);
 
-// 💬 Save user messages to chat log (optional route)
-router.post('/api/message', chatbotController.saveChatMessage);
+// 🧾 Get full chat history (requires login)
+router.get("/history", authMiddleware.protect, chatbotController.getHistory);
 
-// 📜 Chat history (auth protected)
-router.get('/api/history', authenticate, chatbotController.getChatHistory);
+// 🔥 Clear chat history
+router.delete("/history", authMiddleware.protect, chatbotController.clearHistory);
 
-router.post('/api/scenario-advice', chatbotController.getScenarioAdvice);
-
+// ❌ Removed this unused route that caused deployment crash
+// router.post('/api/message', chatbotController.saveChatMessage);
 
 module.exports = router;
