@@ -22,6 +22,9 @@ async function getCoordinatesFromLocation(location) {
   }
 }
 
+
+
+
 // ⛅ Get weather data from OpenWeather
 async function getWeatherData(lat, lon) {
   try {
@@ -113,7 +116,7 @@ async function getChatbotResponse(req, res) {
 };
 
 // 📜 Get chat history (only for logged-in users)
-exports.getChatHistory = async (req, res) => {
+async function getChatHistory(req, res) {
   try {
     const messages = await ChatHistory.find({ user: req.user._id })
       .sort({ createdAt: 1 })
@@ -130,7 +133,7 @@ const fs = require('fs');
 const path = require('path');
 
 // POST /api/scenario-advice
-exports.getScenarioAdvice = async (req, res) => {
+async function getScenarioAdvice(req, res) {
   try {
     const { weatherType, industry, severity, category } = req.body;
 
@@ -164,6 +167,17 @@ exports.getScenarioAdvice = async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch scenario advice." });
   }
 };
+
+// 🧹 Clear chat history (for logged-in user)
+async function clearHistory(req, res) {
+  try {
+    await ChatHistory.deleteMany({ user: req.user._id });
+    return res.json({ success: true, message: "Chat history cleared." });
+  } catch (error) {
+    console.error("Clear history error:", error.message);
+    return res.status(500).json({ error: "Failed to clear chat history." });
+  }
+}
 
 
 // ✅ Final export block
