@@ -80,50 +80,7 @@ exports.checkIfCityIsFavorite = async (req, res) => {
   }
 };
 
-// 🔄 Reorder favorite cities (drag & drop support)
-exports.reorderFavorites = async (req, res) => {
-  const { reordered } = req.body; // array of { id, order }
-  try {
-    for (const item of reordered) {
-      await Favorite.updateOne({ _id: item.id, user: req.user.id }, { order: item.order });
-    }
-    res.json({ message: 'Reordered successfully' });
-  } catch (err) {
-    console.error("Reorder error:", err);
-    res.status(500).json({ error: 'Failed to reorder' });
-  }
-};
-
-// 📧 Notify user about favorite city weather
-exports.notifyFavoritesWeather = async (req, res) => {
-  try {
-    const favorites = await Favorite.find({ user: req.user.id });
-    const user = await User.findById(req.user.id);
-
-    if (!favorites.length) {
-      return res.status(400).json({ error: 'No favorite cities found.' });
-    }
-
-    let content = `Hello ${user.username},\n\nHere's the latest weather update for your favorite cities:\n\n`;
-
-    for (const fav of favorites) {
-      const url = `https://api.openweathermap.org/data/2.5/weather?q=${fav.city}&appid=${OPENWEATHER_API_KEY}&units=metric`;
-      const { data } = await axios.get(url);
-      content += `🌆 ${fav.city}:\n${data.weather[0].description}, Temp: ${data.main.temp}°C\n\n`;
-    }
-
-    await sendEmail(user.email, '🌦️ Your Favorite Cities Weather Update', content);
-    res.json({ message: 'Weather notifications sent successfully.' });
-  } catch (err) {
-    console.error('Notify error:', err);
-    res.status(500).json({ error: 'Failed to send weather notifications.' });
-  }
-};
-
-
-
-
-// 🔄 Drag & Drop Reorder Handler
+// 🔄 Reorder favorite cities (drag & drop)
 exports.reorderFavorites = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -153,13 +110,12 @@ exports.notifyFavoritesWeather = async (req, res) => {
       return res.status(400).json({ error: "No favorite cities to notify." });
     }
 
-    const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
     const weatherResults = [];
 
     for (const fav of favorites) {
       const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(fav.city)}&appid=${OPENWEATHER_API_KEY}&units=metric`;
-      const res = await axios.get(url);
-      const data = res.data;
+      const response = await axios.get(url);
+      const data = response.data;
 
       weatherResults.push({
         city: fav.city,
@@ -168,8 +124,7 @@ exports.notifyFavoritesWeather = async (req, res) => {
       });
     }
 
-    // Compose email message
-    const weatherText = weatherResults.map(w => 
+    const weatherText = weatherResults.map(w =>
       `📍 ${w.city}\n🌡️ Temp: ${w.temperature}\n🌥️ ${w.description}`
     ).join('\n\n');
 
