@@ -180,14 +180,13 @@ async function clearHistory(req, res) {
 }
 
 
-// ✅ Final export block
-module.exports = {
-  getChatbotResponse,
-  handleChat: getChatbotResponse,
-  getChatHistory,
-  getScenarioAdvice,
-  clearHistory
-};
-
+module.exports.getChatbotResponse = getChatbotResponse;
+module.exports.handleChat = getChatbotResponse;
+module.exports.getChatHistory = getChatHistory;
+module.exports.getScenarioAdvice = getScenarioAdvice;
+module.exports.clearHistory = clearHistory;
 
 console.log("✅ chatbotController loaded");
+
+
+
