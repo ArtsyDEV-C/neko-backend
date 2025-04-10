@@ -190,3 +190,4 @@ module.exports = {
 };
 
 
+console.log("✅ chatbotController loaded");
