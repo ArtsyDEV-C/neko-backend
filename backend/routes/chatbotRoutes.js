@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { body } = require("express-validator");
 const rateLimit = require("express-rate-limit");
-const chatbotController = require("../controllers/chatbotController");
 const authMiddleware = require("../middleware/authenticate");
+const chatbotController = require("../controllers/chatbotController");
 
 // 🛡️ Rate limiter to prevent abuse
 const chatLimiter = rateLimit({
