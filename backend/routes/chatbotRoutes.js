@@ -16,6 +16,7 @@ const chatLimiter = rateLimit({
   message: "Too many requests. Please slow down.",
 });
 
+// Fix: Ensure proper middleware and route handler setup
 router.post(
   "/chat",
   authMiddleware.optional,
@@ -24,7 +25,8 @@ router.post(
   handleChat
 );
 
-router.get("/advice", getScenarioAdvice);
+// Fix: Add proper request body parsing for advice route
+router.post("/advice", getScenarioAdvice);  // Changed from GET to POST since it expects request body
 router.get("/history", authMiddleware.protect, getChatHistory);
 router.delete("/history", authMiddleware.protect, clearHistory);
 
