@@ -8,7 +8,7 @@ const {
   getChatHistory,
   clearHistory,
 } = require("../controllers/chatbotController");
-const authMiddleware = require("../middleware/authenticate");
+const { protect, optional } = require("../middleware/authenticate");
 
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -19,7 +19,7 @@ const chatLimiter = rateLimit({
 // Fix: Ensure proper middleware and route handler setup
 router.post(
   "/chat",
-  authMiddleware.optional,
+  optional,
   chatLimiter,
   body("message").notEmpty().withMessage("Message is required"),
   handleChat
@@ -27,7 +27,7 @@ router.post(
 
 // Fix: Add proper request body parsing for advice route
 router.post("/advice", getScenarioAdvice);  // Changed from GET to POST since it expects request body
-router.get("/history", authMiddleware.protect, getChatHistory);
-router.delete("/history", authMiddleware.protect, clearHistory);
+router.get("/history", protect, getChatHistory);
+router.delete("/history", protect, clearHistory);
 
 module.exports = router;
