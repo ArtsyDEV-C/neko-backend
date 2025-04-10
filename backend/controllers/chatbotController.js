@@ -6,21 +6,15 @@ const path = require('path');
 
 const { OpenAI_API_KEY, OPENWEATHER_API_KEY } = process.env;
 
-// 🌍 Convert location string to coordinates
 async function getCoordinatesFromLocation(location) {
   const res = await axios.get("https://nominatim.openstreetmap.org/search", {
-    params: {
-      q: location,
-      format: "json",
-      limit: 1,
-    },
+    params: { q: location, format: "json", limit: 1 },
   });
   const [data] = res.data;
   if (!data) throw new Error("Location not found.");
   return { lat: data.lat, lon: data.lon };
 }
 
-// ⛅ Get weather data from OpenWeather
 async function getWeatherData(lat, lon) {
   const res = await axios.get("https://api.openweathermap.org/data/2.5/weather", {
     params: {
@@ -30,96 +24,28 @@ async function getWeatherData(lat, lon) {
       appid: OPENWEATHER_API_KEY,
     },
   });
-
   const w = res.data;
   return `Weather in ${w.name}: ${w.main.temp}°C, ${w.weather[0].description}, Humidity: ${w.main.humidity}%, Wind: ${w.wind.speed} km/h.`;
 }
 
-
-
-// 📜 Get chat history
-async function getChatHistory(req, res) {
-  try {
-    const messages = await ChatHistory.find({ user: req.user._id }).sort({ createdAt: 1 }).limit(100);
-    return res.json(messages);
-  } catch (error) {
-    console.error("History fetch error:", error.message);
-    return res.status(500).json({ error: "Failed to load chat history." });
-  }
-}
-
-// 📦 Scenario-based advice
-async function getScenarioAdvice(req, res) {
-  try {
-    const { weatherType, industry, severity, category } = req.body;
-
-    if (!weatherType) {
-      return res.status(400).json({ error: "weatherType is required." });
-    }
-
-    const filePath = path.join(__dirname, '..', 'data', 'weatherScenarios.json');
-    const data = fs.readFileSync(filePath, 'utf-8');
-    const scenarios = JSON.parse(data);
-
-    const matches = scenarios.filter(entry =>
-      entry.weatherType.toLowerCase() === weatherType.toLowerCase() &&
-      (!industry || entry.industry.toLowerCase().includes(industry.toLowerCase())) &&
-      (!severity || entry.severity.toLowerCase() === severity.toLowerCase()) &&
-      (!category || entry.category.toLowerCase().includes(category.toLowerCase()))
-    );
-
-    if (matches.length === 0) {
-      return res.status(404).json({ message: "No matching scenario advice found." });
-    }
-
-    return res.json({
-      count: matches.length,
-      results: matches.slice(0, 10)
-    });
-
-  } catch (err) {
-    console.error("Scenario advice error:", err.message);
-    return res.status(500).json({ error: "Failed to fetch scenario advice." });
-  }
-}
-
-// 🧹 Clear chat history
-async function clearHistory(req, res) {
-  try {
-    await ChatHistory.deleteMany({ user: req.user._id });
-    return res.json({ success: true, message: "Chat history cleared." });
-  } catch (error) {
-    console.error("Clear history error:", error.message);
-    return res.status(500).json({ error: "Failed to clear chat history." });
-  }
-}
-
-// ✅ Define handleChat as an async function
 async function handleChat(req, res) {
   try {
     const { message } = req.body;
     const user = req.user?._id || null;
 
-    // Input validation
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     let weatherInfo = "";
-
-    // Detect location from message like "weather in Chennai"
     const locationMatch = message.match(/(?:in|at|from)?\s*([A-Za-z\s]+)\s*(?:weather)?/i);
     if (locationMatch) {
       const location = locationMatch[1].trim();
       const coords = await getCoordinatesFromLocation(location);
-      if (coords) {
-        weatherInfo = await getWeatherData(coords.lat, coords.lon);
-      }
+      weatherInfo = await getWeatherData(coords.lat, coords.lon);
     }
 
     const messages = [
-      { role: "system", content: "You are Neko, a smart, helpful AI assistant specialized in weather guidance. Always respond in a friendly and informative tone. Use weather data when available." },
+      { role: "system", content: "You are Neko, a helpful AI assistant specialized in weather guidance." },
     ];
 
     if (weatherInfo) {
@@ -128,7 +54,6 @@ async function handleChat(req, res) {
 
     messages.push({ role: "user", content: message });
 
-    // Send to OpenAI
     const gptRes = await axios.post(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -144,7 +69,6 @@ async function handleChat(req, res) {
 
     const reply = gptRes.data.choices[0].message.content;
 
-    // Save to DB if logged in
     if (user) {
       await ChatHistory.create({ user, role: "user", message });
       await ChatHistory.create({ user, role: "bot", message: reply });
@@ -153,8 +77,54 @@ async function handleChat(req, res) {
     return res.json({ reply });
 
   } catch (error) {
-    console.error("❌ Chat error:", error.message);
-    return res.status(500).json({ reply: "Sorry, I couldn't process that. Try again later." });
+    console.error("Chatbot error:", error.message);
+    return res.status(500).json({ reply: "Sorry, something went wrong." });
+  }
+}
+
+async function getChatHistory(req, res) {
+  try {
+    const messages = await ChatHistory.find({ user: req.user._id }).sort({ createdAt: 1 }).limit(100);
+    return res.json(messages);
+  } catch (error) {
+    console.error("History error:", error.message);
+    return res.status(500).json({ error: "Failed to load chat history." });
+  }
+}
+
+async function getScenarioAdvice(req, res) {
+  try {
+    const { weatherType, industry, severity, category } = req.body;
+    if (!weatherType) return res.status(400).json({ error: "weatherType is required." });
+
+    const filePath = path.join(__dirname, '..', 'data', 'weatherScenarios.json');
+    const data = fs.readFileSync(filePath, 'utf-8');
+    const scenarios = JSON.parse(data);
+
+    const matches = scenarios.filter(entry =>
+      entry.weatherType.toLowerCase() === weatherType.toLowerCase() &&
+      (!industry || entry.industry.toLowerCase().includes(industry.toLowerCase())) &&
+      (!severity || entry.severity.toLowerCase() === severity.toLowerCase()) &&
+      (!category || entry.category.toLowerCase().includes(category.toLowerCase()))
+    );
+
+    if (matches.length === 0) return res.status(404).json({ message: "No matching scenario advice found." });
+
+    return res.json({ count: matches.length, results: matches.slice(0, 10) });
+
+  } catch (err) {
+    console.error("Scenario advice error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch scenario advice." });
+  }
+}
+
+async function clearHistory(req, res) {
+  try {
+    await ChatHistory.deleteMany({ user: req.user._id });
+    return res.json({ success: true, message: "Chat history cleared." });
+  } catch (error) {
+    console.error("Clear history error:", error.message);
+    return res.status(500).json({ error: "Failed to clear chat history." });
   }
 }
 
