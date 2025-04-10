@@ -166,3 +166,4 @@ exports.getScenarioAdvice = async (req, res) => {
 };
 
 
+exports.handleChat = exports.getChatbotResponse;
