@@ -43,7 +43,7 @@ async function getWeatherData(lat, lon) {
 }
 
 // 🤖 Get GPT response with optional weather context
-exports.getChatbotResponse = async (req, res) => {
+async function getChatbotResponse(req, res) {
   try {
     const userMessage = req.body.message;
     const user = req.user?._id || null;
