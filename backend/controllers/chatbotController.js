@@ -152,6 +152,70 @@ async function clearHistory(req, res) {
   }
 }
 
+// ✅ Define handleChat as an async function
+async function handleChat(req, res) {
+  try {
+    const { message } = req.body;
+    const user = req.user?._id || null;
+
+    // Input validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    let weatherInfo = "";
+
+    // Detect location from message like "weather in Chennai"
+    const locationMatch = message.match(/(?:in|at|from)?\s*([A-Za-z\s]+)\s*(?:weather)?/i);
+    if (locationMatch) {
+      const location = locationMatch[1].trim();
+      const coords = await getCoordinatesFromLocation(location);
+      if (coords) {
+        weatherInfo = await getWeatherData(coords.lat, coords.lon);
+      }
+    }
+
+    const messages = [
+      { role: "system", content: "You are Neko, a smart, helpful AI assistant specialized in weather guidance. Always respond in a friendly and informative tone. Use weather data when available." },
+    ];
+
+    if (weatherInfo) {
+      messages.push({ role: "system", content: weatherInfo });
+    }
+
+    messages.push({ role: "user", content: message });
+
+    // Send to OpenAI
+    const gptRes = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-3.5-turbo",
+        messages,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${OpenAI_API_KEY}`,
+        },
+      }
+    );
+
+    const reply = gptRes.data.choices[0].message.content;
+
+    // Save to DB if logged in
+    if (user) {
+      await ChatHistory.create({ user, role: "user", message });
+      await ChatHistory.create({ user, role: "bot", message: reply });
+    }
+
+    return res.json({ reply });
+
+  } catch (error) {
+    console.error("❌ Chat error:", error.message);
+    return res.status(500).json({ reply: "Sorry, I couldn't process that. Try again later." });
+  }
+}
+
 module.exports = {
   handleChat,
   getChatHistory,
