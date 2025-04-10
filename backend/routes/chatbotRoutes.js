@@ -27,11 +27,10 @@ router.get("/advice", chatbotController.getScenarioAdvice);
 // 🧾 Get full chat history (requires login)
 router.get("/history", authMiddleware.protect, chatbotController.getChatHistory);
 
-
 // 🔥 Clear chat history
 router.delete("/history", authMiddleware.protect, chatbotController.clearHistory);
 
-// ❌ Removed this unused route that caused deployment crash
- router.post('/api/message', chatbotController.saveChatMessage);
+// ❌ Removed broken route below
+// router.post('/api/message', chatbotController.saveChatMessage);
 
 module.exports = router;
