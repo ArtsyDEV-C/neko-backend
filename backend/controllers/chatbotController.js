@@ -179,6 +179,11 @@ async function clearHistory(req, res) {
   }
 }
 
+// ✅ Explicitly define handleChat as a real function
+async function handleChat(req, res) {
+  return getChatbotResponse(req, res);
+}
+
 
 module.exports.getChatbotResponse = getChatbotResponse;
 module.exports.handleChat = getChatbotResponse;
