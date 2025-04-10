@@ -31,5 +31,7 @@ router.get("/history", authMiddleware.protect, chatbotController.getChatHistory)
 router.delete("/history", authMiddleware.protect, chatbotController.clearHistory);
 
 
+console.log("🐛 handleChat is:", typeof chatbotController.handleChat);
+
 
 module.exports = router;
